@@ -50,19 +50,21 @@ class GhostTV:
         g = self.ghosts.get(name)
         if g is None:
             g = self.ghosts[name] = {"map": "", "vel": (0.0, 0.0, 0.0),
-                                     "pos": None}
+                                     "pos": None, "pitch": 0.0, "yaw": 0.0}
             self.log(f"ghost {name!r} on air ({len(self.ghosts)} ghost(s))")
         g["trail_len"], g["trail"], g["ghost"] = trail_len, trail, ghost
         g["last_seen"] = time.monotonic()
         self._to_spectators(build_ghost_data(name, trail_len, trail, ghost))
 
-    def feed_state(self, name: str, mapname: str, vel, pos):
+    def feed_state(self, name: str, mapname: str, vel, pos,
+                   pitch: float = 0.0, yaw: float = 0.0):
         """A player's live position update, relayed from the main server."""
         g = self.ghosts.get(name)
         if g is None:
             self.announce_ghost(name)
             g = self.ghosts[name]
         g["map"], g["vel"], g["pos"] = mapname, tuple(vel), tuple(pos)
+        g["pitch"], g["yaw"] = pitch, yaw
         g["last_seen"] = time.monotonic()
 
     def remove_ghost(self, name: str):
@@ -122,7 +124,8 @@ class GhostTV:
             if g["pos"] is None:
                 continue
             self.sock.sendto(build_run_line(gname, g["map"], g["vel"],
-                                            g["pos"]), addr)
+                                            g["pos"], g["pitch"], g["yaw"]),
+                             addr)
 
     def poll(self):
         """Drain spectator traffic and evict stale spectators/ghosts. Called

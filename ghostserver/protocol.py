@@ -17,16 +17,26 @@ class PacketType:
     RESERVED_2 = 2
     RESERVED_3 = 3
     NAME_ONLY = 4   # str name
-    CHAT_ONLY = 5   # str chat
+    # 0x05: the decompile stores the string into `chat`, but on a live client
+    # this packet KICKS the recipient, showing the string as the reason
+    # (confirmed against a real HL2 Ghosting-mod client).
+    KICK = 5        # str reason
 
 
 # ---------------------------------------------------------------- decoding
 
-def read_string(buf: bytes, pos: int) -> tuple[str, int]:
+MAX_STRING = 1024  # sanity cap on any wire string (parity with the JS relay)
+
+
+def read_string(buf: bytes, pos: int, max_len: int = MAX_STRING) -> tuple[str, int]:
     if pos + 4 > len(buf):
         raise ValueError("truncated string length")
     (length,) = struct.unpack_from(">I", buf, pos)
     pos += 4
+    # Reject absurd lengths before touching the buffer, like the JS relay's
+    # readString does. `length` is unsigned, so this also catches garbage.
+    if length > max_len:
+        raise ValueError(f"bad string length {length}")
     if length > len(buf) - pos:
         raise ValueError("truncated string body")
     return buf[pos:pos + length].decode("latin-1"), pos + length
@@ -65,9 +75,9 @@ def parse_packet(buf: bytes) -> dict | None:
         if ptype == PacketType.NAME_ONLY:
             name, pos = read_string(buf, pos)
             return {"type": ptype, "name": name}
-        if ptype == PacketType.CHAT_ONLY:
-            chat, pos = read_string(buf, pos)
-            return {"type": ptype, "chat": chat}
+        if ptype == PacketType.KICK:
+            reason, pos = read_string(buf, pos)
+            return {"type": ptype, "reason": reason}
     except ValueError:
         return None
     return None
@@ -95,8 +105,9 @@ def pack_name_only(name: str) -> bytes:
     return b"\x04" + pack_string(name)
 
 
-def pack_chat_only(chat: str) -> bytes:
-    return b"\x05" + pack_string(chat)
+def pack_kick(reason: str) -> bytes:
+    # 0x05 kicks the recipient; `reason` is shown to the player.
+    return b"\x05" + pack_string(reason)
 
 
 # ---------------------------------------------------- original protocol
@@ -165,10 +176,11 @@ def build_ghost_data(name: str, trail_len: int = 5,
 
 
 def build_run_line(name: str, map_name: str,
-                   vel=(0.0, 0.0, 0.0), pos=(0.0, 0.0, 0.0)) -> bytes:
-    """0x01: a ghost's live state (name, map, vel xyz, pos xyz)."""
+                   vel=(0.0, 0.0, 0.0), pos=(0.0, 0.0, 0.0),
+                   pitch: float = 0.0, yaw: float = 0.0) -> bytes:
+    """0x01: a ghost's live state (name, map, vel xyz, pos xyz, pitch, yaw)."""
     return _pad(b"\x01" + pack_string(name) + pack_string(map_name)
-                + struct.pack("<6f", *vel, *pos))
+                + struct.pack("<8f", *vel, *pos, pitch, yaw))
 
 
 def build_remove_ghost(name: str) -> bytes:
@@ -207,7 +219,7 @@ def parse_wire(buf: bytes) -> dict | None:
                 return None
             length = int.from_bytes(buf[pos:pos + 4], "big")
             pos += 4
-            if length > 1024 or pos + length > len(buf):
+            if length > MAX_STRING or pos + length > len(buf):
                 return None
             strings.append(buf[pos:pos + length].decode("latin-1"))
             pos += length
@@ -252,6 +264,6 @@ def pack_packet(pkt: dict) -> bytes:
                                float(pkt.get("pitch", 0.0)))
     if ptype == PacketType.NAME_ONLY:
         return pack_name_only(pkt["name"])
-    if ptype == PacketType.CHAT_ONLY:
-        return pack_chat_only(pkt["chat"])
+    if ptype == PacketType.KICK:
+        return pack_kick(pkt["reason"])
     raise ValueError(f"cannot encode packet type {ptype}")

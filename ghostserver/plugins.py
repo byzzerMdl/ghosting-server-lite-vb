@@ -57,12 +57,12 @@ class ServerAPI:
         self._server.kick(str(client_id), str(reason))
 
     def client_count(self):
-        return len(self._server.clients)
+        return len(self._server.users)
 
     def client_dicts(self):
-        return [{"id": f"{a[0]}:{a[1]}", "name": c["name"],
-                 "ip": a[0], "port": a[1]}
-                for a, c in self._server.clients.items()]
+        return [{"id": f"{u['addr'][0]}:{u['addr'][1]}", "name": u["name"],
+                 "ip": u["addr"][0], "port": u["addr"][1]}
+                for u in self._server.users.values()]
 
 
 # --------------------------------------------------------------- Lua backend
@@ -197,7 +197,8 @@ class PluginManager:
             plugin.call("on_load")
         self.server.log(f"{len(self.plugins)} plugin(s) active")
 
-    def dispatch(self, hook: str, addr=None, pkt: dict | None = None,
+    def dispatch(self, hook: str, user: dict | None = None,
+                 pkt: dict | None = None,
                  text: str | None = None, dt: float | None = None):
         """Fire a hook on every plugin.
 
@@ -207,9 +208,8 @@ class PluginManager:
         allowed = True
         for plugin in self.plugins:
             args = []
-            if addr is not None:
-                client = self.server.clients.get(addr, {"name": "?"})
-                args.append(plugin.build_client(addr, client))
+            if user is not None:
+                args.append(plugin.build_client(user["addr"], user))
             if pkt is not None:
                 args.append(plugin.build_packet(pkt))
             if text is not None:
