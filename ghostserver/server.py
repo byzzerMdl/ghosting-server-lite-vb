@@ -20,7 +20,7 @@ CLIENT_TIMEOUT = 30.0  # seconds of silence before a client is dropped
 TICK = 0.05            # server loop period (20 Hz)
 
 
-def _max_players() -> int:
+def _default_max_players() -> int:
     # Node parity: parseInt(process.env.MAX_PLAYERS, 10) || 16
     try:
         return int(os.environ.get("MAX_PLAYERS", "")) or 16
@@ -28,14 +28,13 @@ def _max_players() -> int:
         return 16
 
 
-MAX_PLAYERS = _max_players()
-
-
 class GhostServer:
     def __init__(self, host: str, port: int, plugin_dir: Path | str = "plugins",
                  verbose: bool = True, show_pos: bool = False,
                  tv: bool = False, tv_port: int | None = None,
-                 load_plugins: bool = True):
+                 load_plugins: bool = True, max_players: int | None = None):
+        self.max_players = (max_players if max_players is not None
+                            else _default_max_players())
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((host, port))
         self.sock.settimeout(TICK)
@@ -46,7 +45,7 @@ class GhostServer:
         self.show_pos = show_pos
         self._pos_timer = 0.0
         print(f"[ghost-server] listening on {host}:{port} (UDP), "
-              f"max {MAX_PLAYERS} players")
+              f"max {self.max_players} players")
         # GHMTV: a plugin-less spectator relay on a separate port.
         self.tv = GhostTV(host, tv_port or port + TV_PORT_OFFSET,
                           verbose=verbose) if tv else None
@@ -99,8 +98,8 @@ class GhostServer:
         user = self.users.get(name)
         is_new = user is None
         if is_new:
-            if len(self.users) >= MAX_PLAYERS:
-                self.log(f"server full ({len(self.users)}/{MAX_PLAYERS}); "
+            if len(self.users) >= self.max_players:
+                self.log(f"server full ({len(self.users)}/{self.max_players}); "
                          f"rejecting {name!r} from {addr}")
                 if kick_when_full:
                     self.sock.sendto(build_kick("Ghost server is full."), addr)

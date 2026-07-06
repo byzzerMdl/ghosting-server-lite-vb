@@ -33,6 +33,10 @@ def main():
     # still implies --tv.
     ap.add_argument("--tv-port", type=int, default=None, metavar="PORT",
                     help="override the GHMTV port (implies --tv)")
+    ap.add_argument("--max-players", type=int, default=cfg.get("maxplayers"),
+                    metavar="N",
+                    help="max concurrent players (default: MAX_PLAYERS env "
+                         "or 16)")
     ap.add_argument("-q", "--quiet", action="store_true",
                     default=cfg.get("quiet", False))
     args = ap.parse_args()
@@ -43,7 +47,8 @@ def main():
     server = GhostServer(args.host, args.port, plugin_dir=args.plugins,
                          verbose=not args.quiet, show_pos=args.showplayerpos,
                          tv=tv_enabled, tv_port=tv_port,
-                         load_plugins=not args.no_plugins)
+                         load_plugins=not args.no_plugins,
+                         max_players=args.max_players)
     try:
         server.run()
     except KeyboardInterrupt:

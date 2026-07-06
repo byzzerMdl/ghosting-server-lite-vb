@@ -11,6 +11,7 @@ Recognised keys (see server.cfg for the annotated template):
     plugins_enabled   bool   load plugins at all
     tv                bool    run the GHMTV spectator relay
     tv_port           int    GHMTV port (default: port + 5)
+    maxplayers        int    max concurrent players (default: MAX_PLAYERS env or 16)
     showplayerpos     bool   print player positions ~1 Hz
     quiet             bool   suppress per-event logging
 """
@@ -21,7 +22,7 @@ _TRUE = {"1", "true", "yes", "on", "enable", "enabled"}
 _FALSE = {"0", "false", "no", "off", "disable", "disabled"}
 
 _STR_KEYS = ("host", "plugins")
-_INT_KEYS = ("port", "tv_port")
+_INT_KEYS = ("port", "tv_port", "maxplayers")
 _BOOL_KEYS = ("plugins_enabled", "tv", "showplayerpos", "quiet")
 
 
